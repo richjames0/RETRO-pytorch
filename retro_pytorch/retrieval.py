@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import logging
 import numpy as np
 from einops import rearrange
-
+from codetiming import Timer
 import faiss
 
 from retro_pytorch.utils import memmap
@@ -347,9 +347,13 @@ def train_faiss_index(embeddings, index_path):
     else:
         train_embeds = embeddings
 
-    print(f'Training...')
-    # Apparently FAISS plays nice with numpy memmap.
-    index.train(train_embeds)
+    timer_logger = lambda x: None
+    print(f'Training index')
+    with Timer('index training', logger=timer_logger):
+        # Apparently FAISS plays nice with numpy memmap.
+        index.train(train_embeds)
+    print('Done training index')
+    print(Timer.timers)
 
     # Save the index immediately after training (which takes a long
     # time) in case we fail for some reason to add the embeds to the index.
