@@ -11,10 +11,12 @@ from torch.utils.data import DataLoader
 from retro_pytorch import RETRO, RETRODataset
 from retro_pytorch.data import knn_to_retrieved_chunks
 from retro_pytorch.optimizer import get_optimizer
-from retro_pytorch.retrieval import text_folder_to_chunks_, chunks_to_precalculated_knn_, bert_embed, SOS_ID, EOS_ID
+from retro_pytorch.retrieval import jsonl_folder_to_chunks_, chunks_to_precalculated_knn_, bert_embed, SOS_ID, EOS_ID
 from retro_pytorch.utils import memmap, is_true_env_flag
 
 from einops import rearrange
+
+VALID_SPLIT = 0.2
 
 # helpers
 
@@ -133,7 +135,7 @@ class TrainingWrapper(nn.Module):
         max_seqs = 100_000,
         knn_extra_neighbors = 100,
         processed_stats_json_path = './processed-stats.json',
-        faiss_index_filename = 'knn.index',
+        index_path,
         **index_kwargs
     ):
         super().__init__()
@@ -151,7 +153,7 @@ class TrainingWrapper(nn.Module):
         # force reprocess by setting REPROCESS=1 when running training script
 
         if not stats_path.exists() or force_reprocess:
-            self.stats = text_folder_to_chunks_(
+            self.stats = jsonl_folder_to_chunks_(
                 folder = documents_path,
                 glob = glob,
                 chunks_memmap_path = chunks_memmap_path,
@@ -183,15 +185,34 @@ class TrainingWrapper(nn.Module):
             doc_ids_memmap_path = doc_ids_memmap_path,
             num_nearest_neighbors = knn,
             num_extra_neighbors = knn_extra_neighbors,
-            index_file = faiss_index_filename,
+            index_path = index_path,
             force_reprocess = force_reprocess,
             **index_kwargs
         )
 
-        # retro dataset
+        print(f'num_seqs: {num_seqs}')
+        num_valid_seqs = int(VALID_SPLIT * num_seqs)
+        num_train_seqs = num_seqs - num_valid_seqs
+        print(f'num_valid_seqs: {num_valid_seqs}')
+        print(f'num_train_seqs: {num_train_seqs}')
 
-        self.ds = RETRODataset(
-            num_sequences = num_seqs,
+        self.train_ds = RETRODataset(
+            total_num_sequences=num_seqs,
+            num_sequences = num_train_seqs,
+            sequences_offset = 0,
+            num_chunks = num_chunks,
+            num_neighbors = knn,
+            chunk_size = chunk_size,
+            seq_len = retro.seq_len,
+            chunk_memmap_path = chunks_memmap_path,
+            chunk_nn_memmap_path = knn_memmap_path,
+            seq_memmap_path = seqs_memmap_path
+        )
+
+        self.valid_ds = RETRODataset(
+            total_num_sequences=num_seqs,
+            num_sequences = num_valid_seqs,
+            sequences_offset = num_train_seqs,
             num_chunks = num_chunks,
             num_neighbors = knn,
             chunk_size = chunk_size,
@@ -299,8 +320,11 @@ class TrainingWrapper(nn.Module):
 
         return out
 
-    def get_dataloader(self, **kwargs):
-        return DataLoader(self.ds, **kwargs)
+    def get_train_dataloader(self, **kwargs):
+        return DataLoader(self.train_ds, **kwargs)
+
+    def get_valid_dataloader(self, **kwargs):
+        return DataLoader(self.valid_ds, **kwargs)
 
     def get_optimizer(self, **kwargs):
         return get_optimizer(self.retro.parameters(), **kwargs)

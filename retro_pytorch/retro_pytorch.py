@@ -576,8 +576,6 @@ class RETRO(nn.Module):
         if not exists(retrieved):
             return self.forward_without_retrieval(seq)
 
-        assert not (return_loss and not self.training), 'must be training if returning loss'
-
         # assume padding token id (usually 0.) is to be masked out
 
         mask = retrieved != self.pad_id
@@ -649,4 +647,4 @@ class RETRO(nn.Module):
         # cross entropy loss
 
         loss = F.cross_entropy(rearrange(logits, 'b n c -> b c n'), labels, ignore_index = self.pad_id)
-        return loss
+        return loss.unsqueeze(0)

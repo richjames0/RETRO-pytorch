@@ -56,7 +56,9 @@ class RETRODataset(Dataset):
         num_chunks,
         chunk_size,
         seq_len,
+        total_num_sequences,
         num_sequences,
+        sequences_offset,
         num_neighbors,
         chunk_memmap_path,
         chunk_nn_memmap_path,
@@ -68,6 +70,7 @@ class RETRODataset(Dataset):
         super().__init__()
         self.num_chunks = num_chunks
         self.num_sequences = num_sequences
+        self.sequences_offset = sequences_offset
         self.seq_num_chunks = seq_len // chunk_size
         self.eos_id = eos_id
         self.pad_id = pad_id
@@ -80,14 +83,14 @@ class RETRODataset(Dataset):
         self.add_continuations = add_continuations
         self.get_chunks = partial(memmap, chunk_memmap_path, dtype = np.int32, shape = chunks_shape)
         self.get_knns = partial(memmap, chunk_nn_memmap_path, dtype = np.int32, shape = knn_shape)
-        self.get_seqs = partial(memmap, seq_memmap_path, dtype = np.int32, shape = (num_sequences,))
+        self.get_seqs = partial(memmap, seq_memmap_path, dtype = np.int32, shape = (total_num_sequences,))
 
     def __len__(self):
         return self.num_sequences
 
     def __getitem__(self, ind):
         with self.get_chunks() as chunks_memmap, self.get_knns() as knns_memmap, self.get_seqs() as seqs_memmap:
-            begin_chunk_index = seqs_memmap[ind]
+            begin_chunk_index = seqs_memmap[ind + self.sequences_offset]
             chunk_range = slice(begin_chunk_index, (begin_chunk_index + self.seq_num_chunks))
 
             chunks = chunks_memmap[chunk_range]
