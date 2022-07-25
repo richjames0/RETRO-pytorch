@@ -104,6 +104,7 @@ def doc_text_to_chunks_and_seq_indices(
     # split out very last token
 
     ids, last_token = ids[:-1], ids[-1:]
+    assert last_token.item() == 0
     ids = rearrange(ids, '(n c) -> n c', c = chunk_size)
 
     # first tokens of chunk [2:] and on will become the last token of chunk [1:]
@@ -198,11 +199,10 @@ def _text_to_chunks(
             doc_seq_len = seq.shape[0]
 
             if doc_chunk_len > max_chunks - total_chunks or doc_seq_len > max_seqs - total_seqs:
+                assert False
                 print(f'Hit max seqs / chunks, stopping')
                 break
 
-            # shuffle at one of last places before split into train, validation
-            np.random.shuffle(seq)
             chunks_memmap[total_chunks:(total_chunks + doc_chunk_len)] = chunks.numpy()
             seqs_memmap[total_seqs:(total_seqs + doc_seq_len)] = seq.numpy() + total_chunks
             doc_ids_memmap[total_chunks:(total_chunks + doc_chunk_len)] = np.full((doc_chunk_len,), total_docs)
@@ -213,6 +213,10 @@ def _text_to_chunks(
 
             if total_docs % 1000 == 0:
                 print(f'Processed {total_docs} docs')
+
+        # shuffle at one of last places before split into train, validation
+        np.random.shuffle(seqs_memmap[0:(total_seqs + doc_seq_len)])
+        #  = np.random.permutation(seqs_memmap[0:(total_seqs + doc_seq_len)])
 
     return dict(
         chunks = total_chunks,
@@ -276,12 +280,12 @@ def chunks_to_embeddings_(
     chunks_shape = (num_chunks, chunk_size + 1)
     embed_shape = (num_chunks, embed_dim)
 
-    if worker_id is not None:
-        if not Path(embeddings_memmap_path + '.part1').exists():
-            raise FileNotFoundError(f"When embedding with worker_ids, the numpy file must already exist to avoid accidental truncation of other worker output. Please create it by running from retro_pytorch.utils import BertEmbeds; BertEmbeds(fname = '{embeddings_memmap_path}', shape={embed_shape}, dtype=np.float32, mode='w+') before running any workers.")
-        mode = 'r+'
-    else:
-        mode = 'w+'
+    # if worker_id is not None:
+    #     if not Path(embeddings_memmap_path + '.part1').exists():
+    #         raise FileNotFoundError(f"When embedding with worker_ids, the numpy file must already exist to avoid accidental truncation of other worker output. Please create it by running from retro_pytorch.utils import BertEmbeds; BertEmbeds(fname = '{embeddings_memmap_path}', shape={embed_shape}, dtype=np.float32, mode='w+') before running any workers.")
+    #     mode = 'r+'
+    # else:
+    mode = 'w+'
 
 
     with memmap(chunks_memmap_path, shape = chunks_shape, dtype = np.int32) as chunks\
@@ -289,8 +293,8 @@ def chunks_to_embeddings_(
 
         for idx, dim_slice in enumerate(range_chunked(num_chunks, batch_size = batch_size)):
             # If num_workers is 10, each worker does every 10'th batch (offset by worker_id)
-            if idx % num_workers != worker_id:
-                continue
+            # if idx % num_workers != worker_id:
+            #     continue
 
             batch_chunk_npy = chunks[dim_slice]
 
@@ -327,7 +331,9 @@ def train_faiss_index(embeddings, index_path):
     # Note that the IndexIVFPQFastScan index created by this factory is intended for use on AVX2 enabled CPUs.
     # Also note that this index requires *at least* ~16x4 bits of RAM for every stored vector.
     # That's around 43 GB for 5.8B vectors.
+    # TODO: Above comment is not correct given current key
     index = faiss.index_factory(BERT_MODEL_DIM, f'OPQ16_64,IVF{num_clusters}_HNSW32,PQ16x4fs')
+    # PCA256,L2norm,IVF1024,PCAR128,SHg')  #
 
     # From https://gist.github.com/mdouze/46d6bbbaabca0b9778fca37ed2bcccf6
     # For a sense of the speedup you get from using GPUs:
