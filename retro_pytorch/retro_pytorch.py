@@ -539,8 +539,12 @@ class RETRO(nn.Module):
 
     def forward_without_retrieval(
         self,
-        seq
+        seq,
+        return_loss = False
     ):
+        if return_loss:
+            seq, labels = seq[:, :-1], seq[:, 1:]
+
         # embed sequence
 
         embed = self.token_emb(seq)
@@ -557,7 +561,16 @@ class RETRO(nn.Module):
 
         # project to logits
 
-        return self.to_logits(embed)
+        logits = self.to_logits(embed)
+
+        if not return_loss:
+            return logits
+
+        # cross entropy loss
+
+        loss = F.cross_entropy(rearrange(logits, 'b n c -> b c n'), labels, ignore_index = self.pad_id)
+        return loss.unsqueeze(0)
+
 
     def forward(
         self,
@@ -574,7 +587,7 @@ class RETRO(nn.Module):
         """
 
         if not exists(retrieved):
-            return self.forward_without_retrieval(seq)
+            return self.forward_without_retrieval(seq, return_loss)
 
         # assume padding token id (usually 0.) is to be masked out
 
