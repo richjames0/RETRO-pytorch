@@ -336,7 +336,7 @@ class Encoder(nn.Module):
             self.layers.append(nn.ModuleList([
                 wrapper(Attention(dim = dim, dim_head = dim_head, heads = heads, dropout = attn_dropout, causal = causal)),
                 wrapper(Attention(dim = dim, context_dim = context_dim, dim_head = dim_head, heads = heads, dropout = attn_dropout)) if has_cross_attn else None,
-                wrapper(FeedForward(dim = dim * 4, mult = ff_mult, dropout = ff_dropout)),
+                wrapper(FeedForward(dim = dim, mult = ff_mult, dropout = ff_dropout)),
             ]))
 
         self.norm_out = norm_klass(dim) if final_norm and not post_norm else nn.Identity()
@@ -396,7 +396,7 @@ class Decoder(nn.Module):
             self.layers.append(nn.ModuleList([
                 wrapper(Attention(dim = dim, dim_head = dim_head, heads = heads, dropout = attn_dropout, causal = True)),
                 wrapper(ChunkedCrossAttention(chunk_size = chunk_size, dim = dim, dim_head = dim_head, heads = heads, dropout = attn_dropout)) if has_cross_attn else None,
-                wrapper(FeedForward(dim = dim * 4, mult = ff_mult, dropout = ff_dropout)),
+                wrapper(FeedForward(dim = dim, mult = ff_mult, dropout = ff_dropout)),
             ]))
 
         self.norm_out = norm_klass(dim) if final_norm and not post_norm else nn.Identity()
