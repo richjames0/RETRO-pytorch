@@ -326,6 +326,12 @@ class TrainingWrapper(nn.Module):
     def get_valid_dataloader(self, **kwargs):
         return DataLoader(self.valid_ds, **kwargs)
 
+    def get_train_dataset(self):
+        return self.train_ds
+
+    def get_valid_dataset(self):
+        return self.valid_ds
+
     def get_optimizer(self, **kwargs):
         return get_optimizer(self.retro.parameters(), **kwargs)
 
