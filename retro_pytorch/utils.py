@@ -2,8 +2,6 @@ import os
 import numpy as np
 
 from pathlib import Path
-from functools import reduce
-import math
 from shutil import rmtree
 from contextlib import contextmanager
 
@@ -20,13 +18,3 @@ def memmap(*args, **kwargs):
     pointer = np.memmap(*args, **kwargs)
     yield pointer
     del pointer
-
-
-def check_key(key):
-    if isinstance(key, tuple):
-        raise NotImplementedError("BertEmbeds don't support tuple indexing")
-    if isinstance(key, slice):
-        if key.step:
-            raise NotImplementedError("BertEmbeds don't support slice steps")
-        if key.start < 0 or key.stop < 0:
-            raise NotImplementedError("BertEmbeds don't support negative slices")
