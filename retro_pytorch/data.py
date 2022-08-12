@@ -85,6 +85,21 @@ class RETRODataset(Dataset):
         self.get_knns = partial(memmap, chunk_nn_memmap_path, dtype = np.int32, shape = knn_shape)
         self.get_seqs = partial(memmap, seq_memmap_path, dtype = np.int32, shape = (total_num_sequences,))
 
+        # for compact_files
+        self.num_chunks_with_padding = num_chunks_with_padding
+
+    def compact_files(self, chunks_memmap_path: str, doc_ids_memmap_path: str, seqs_memmap_path: str):
+        get_docs = partial(memmap, doc_ids_memmap_path, dtype=np.int32, shape=(self.num_chunks_with_padding,))
+
+        with self.get_chunks() as chunks_memmap, get_docs() as docs_memmap, self.get_seqs() as seqs_memmap:
+            with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode = 'w+') as chunks_memmap_c\
+                , memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype = np.int32, mode = 'w+') as docs_memmap_c\
+                , memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode = 'w+') as seqs_memmap_c:
+                    chunks_memmap_c[:-1,:-1] = chunks_memmap [:-1,:-1]
+                    docs_memmap_c[:-1,:-1] = docs_memmap [:-1,:-1]
+                    # TODO: check this indexing
+                    seqs_memmap_c[:-1] = seqs_memmap[:-1]
+
     def __len__(self):
         return self.num_sequences
 
