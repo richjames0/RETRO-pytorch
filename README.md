@@ -16,6 +16,15 @@ Update: Someone on Reddit has gifted me a <a href="https://old.reddit.com/r/Mach
 
 ## Install
 
+
+### With Poetry
+
+One option (created/tested by Pedro), is to:
+1. Install Python Poetry on the system python via https://github.com/python-poetry/install.python-poetry.org
+2. Create an anaconda environment with `conda create -n retro python=3.9` (You can change python versions here, 3.8 is tested, Pedro is guinea pigging 3.9)
+3. Activate: `conda activate retro`
+4. Install: `poetry install`
+
 ```bash
 $ pip install retro-pytorch
 ````
