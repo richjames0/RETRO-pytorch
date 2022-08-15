@@ -215,7 +215,7 @@ def _text_to_chunks(
                 print(f'Processed {total_docs} docs')
 
         # shuffle at one of last places before split into train, validation
-        np.random.shuffle(seqs_memmap[0:(total_seqs + doc_seq_len)])
+        np.random.shuffle(seqs_memmap[0:(total_seqs)])
         #  = np.random.permutation(seqs_memmap[0:(total_seqs + doc_seq_len)])
 
     return dict(
