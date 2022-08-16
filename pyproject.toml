@@ -16,12 +16,15 @@ streamlit = "^1.12.0"
 jsonlines = "^3.1.0"
 codetiming = "^1.3.0"
 autofaiss = "^2.15.1"
+sacremoses = "^0.0.53"
+st-annotated-text = "^3.0.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.6.0"
 pylint = "^2.14.5"
 isort = "^5.10.1"
 ipython = "^8.4.0"
+jupyterlab = "^3.4.5"
 
 [tool.black]
 line-length = 128
