@@ -660,5 +660,8 @@ class RETRO(nn.Module):
         # cross entropy loss
 
         loss = F.cross_entropy(rearrange(logits, 'b n c -> b c n'), labels, ignore_index = self.pad_id)
-        nll = F.nll_loss(rearrange(logits, 'b n c -> b c n'), labels, ignore_index = self.pad_id)
-        return nll.unsqueeze(0)
+        # print(loss)
+        input_ = F.log_softmax(logits)
+        nll = F.nll_loss(rearrange(input_, 'b n c -> b c n'), labels, ignore_index = self.pad_id)
+        # print(nll)
+        return loss.unsqueeze(0)
