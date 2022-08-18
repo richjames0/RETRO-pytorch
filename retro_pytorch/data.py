@@ -92,13 +92,13 @@ class RETRODataset(Dataset):
         get_docs = partial(memmap, doc_ids_memmap_path, dtype=np.int32, shape=(self.num_chunks_with_padding,))
 
         with self.get_chunks() as chunks_memmap, get_docs() as docs_memmap, self.get_seqs() as seqs_memmap:
-            with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode = 'w+') as chunks_memmap_c\
-                , memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype = np.int32, mode = 'w+') as docs_memmap_c\
-                , memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode = 'w+') as seqs_memmap_c:
-                    chunks_memmap_c[:-1,:-1] = chunks_memmap [:-1,:-1]
-                    docs_memmap_c[:-1,:-1] = docs_memmap [:-1,:-1]
-                    # TODO: check this indexing
-                    seqs_memmap_c[:-1] = seqs_memmap[:-1]
+            with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode='w+') as chunks_memmap_c,\
+                 memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype=np.int32, mode='w+') as docs_memmap_c,\
+                 memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode='w+') as seqs_memmap_c:
+                chunks_memmap_c[:-1, :-1] = chunks_memmap[:-1, :-1]
+                docs_memmap_c[:-1, :-1] = docs_memmap[:-1, :-1]
+                # TODO: check this indexing
+                seqs_memmap_c[:-1] = seqs_memmap[:-1]
 
     def __len__(self):
         return self.num_sequences
