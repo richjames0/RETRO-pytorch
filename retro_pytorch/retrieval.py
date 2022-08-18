@@ -17,10 +17,12 @@ from retro_pytorch.utils import memmap
 
 # constants
 
+CASED = False
 SOS_ID = 101
 EOS_ID = 102
 BERT_MODEL_DIM = 768
-BERT_VOCAB_SIZE = 28996
+# TODO: this is very unpleasant
+BERT_VOCAB_SIZE = 28996 if CASED else 30522
 
 TMP_PATH = Path('./.tmp')
 EMBEDDING_TMP_SUBFOLDER = 'embeddings'
@@ -51,13 +53,14 @@ TOKENIZER = None
 def get_tokenizer():
     global TOKENIZER
     if not exists(TOKENIZER):
-        TOKENIZER = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased')
+        print('Using UNCASED tokenizer')
+        TOKENIZER = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', f'bert-base-{"" if CASED else "un"}cased')
     return TOKENIZER
 
 def get_bert():
     global MODEL
     if not exists(MODEL):
-        MODEL = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
+        MODEL = torch.hub.load('huggingface/pytorch-transformers', 'model', f'bert-base-{"" if CASED else "un"}cased')
         if torch.cuda.is_available():
             MODEL = MODEL.cuda()
 
