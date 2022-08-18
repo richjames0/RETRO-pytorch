@@ -68,6 +68,22 @@ def top_p(logits, thres = 0.9):
     sorted_logits[sorted_indices_to_remove] = float('-inf')
     return sorted_logits.scatter(1, sorted_indices, sorted_logits)
 
+
+def compact_files(num_chunks: int, num_seqs: int, chunk_size: int, chunks_memmap_path: str, seqs_memmap_path: str, doc_ids_memmap_path, retro) -> None:
+    num_chunks_with_padding = num_chunks + retro.seq_len // chunk_size
+    chunks_shape = (num_chunks_with_padding, chunk_size + 1)
+    get_chunks = partial(memmap, chunks_memmap_path, dtype=np.int32, shape=chunks_shape)
+    get_seqs = partial(memmap, seqs_memmap_path, dtype=np.int32, shape=(num_seqs,))
+    get_docs = partial(memmap, doc_ids_memmap_path, dtype=np.int32, shape=(num_chunks_with_padding,))
+
+    with get_chunks() as chunks_memmap, get_docs() as docs_memmap, get_seqs() as seqs_memmap:
+        with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode='w+') as chunks_memmap_c,\
+                memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype=np.int32, mode='w+') as docs_memmap_c,\
+                memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode='w+') as seqs_memmap_c:
+            chunks_memmap_c[:, :] = chunks_memmap[:, :]
+            docs_memmap_c[:] = docs_memmap[:]
+            seqs_memmap_c[:] = seqs_memmap[:]
+
 # function that returns knn chunks from seq chunks
 #
 # 1. adds sos and eos to seq chunks
@@ -135,7 +151,6 @@ class TrainingWrapper(nn.Module):
         max_seqs = 100_000,
         knn_extra_neighbors = 100,
         processed_stats_json_path = './processed-stats.json',
-        compact_files=True,
         index_path,
         **index_kwargs
     ):
@@ -197,14 +212,6 @@ class TrainingWrapper(nn.Module):
         print(f'num_valid_seqs: {num_valid_seqs}')
         print(f'num_train_seqs: {num_train_seqs}')
 
-        if(compact_files):
-            num_chunks_with_padding = num_chunks + retro.seq_len // chunk_size
-            chunks_shape = (num_chunks_with_padding, chunk_size + 1)
-            self.get_chunks = partial(memmap, chunks_memmap_path, dtype=np.int32, shape=chunks_shape)
-            self.get_seqs = partial(memmap, seqs_memmap_path, dtype=np.int32, shape=(num_seqs,))
-            self.compact_files(chunks_memmap_path, doc_ids_memmap_path, seqs_memmap_path, num_chunks_with_padding=num_chunks_with_padding)
-            assert False
-
         self.train_ds = RETRODataset(
             total_num_sequences=num_seqs,
             num_sequences = num_train_seqs,
@@ -244,20 +251,6 @@ class TrainingWrapper(nn.Module):
             chunks_memmap_path = chunks_memmap_path,
             faiss_index = faiss_index
         )
-
-    def compact_files(self, chunks_memmap_path: str, doc_ids_memmap_path: str, seqs_memmap_path: str, num_chunks_with_padding: int):
-        get_docs = partial(memmap, doc_ids_memmap_path, dtype=np.int32, shape=(num_chunks_with_padding,))
-
-        with self.get_chunks() as chunks_memmap, get_docs() as docs_memmap, self.get_seqs() as seqs_memmap:
-            with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode='w+') as chunks_memmap_c,\
-                 memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype=np.int32, mode='w+') as docs_memmap_c,\
-                 memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode='w+') as seqs_memmap_c:
-                chunks_memmap_c[:, :] = chunks_memmap[:, :]
-                docs_memmap_c[:] = docs_memmap[:]
-                # TODO: check this indexing
-                seqs_memmap_c[:] = seqs_memmap[:]
-
-
 
     @torch.no_grad()
     @eval_decorator
