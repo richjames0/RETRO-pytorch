@@ -17,7 +17,7 @@ from retro_pytorch.utils import memmap
 
 # constants
 
-CASED = False
+CASED = True
 SOS_ID = 101
 EOS_ID = 102
 BERT_MODEL_DIM = 768
