@@ -8,18 +8,19 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-name: Automated Testing and Deployment
+name: Automated Testing
 
 on:
   push:
     branches: [main]
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8]
+        python-version: [3.9]
 
     steps:
       - uses: actions/checkout@v2
@@ -43,4 +44,4 @@ jobs:
         continue-on-error: true
       - name: Test with pytest
         run: |
-          poetry run pytest -n 2
+          poetry run pytest
