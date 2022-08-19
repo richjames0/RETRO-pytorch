@@ -73,6 +73,22 @@ def top_p(logits, thres = 0.9):
     sorted_logits[sorted_indices_to_remove] = float('-inf')
     return sorted_logits.scatter(1, sorted_indices, sorted_logits)
 
+
+def compact_files(num_chunks: int, num_seqs: int, chunk_size: int, chunks_memmap_path: str, seqs_memmap_path: str, doc_ids_memmap_path: str, seq_len: int) -> None:
+    num_chunks_with_padding = num_chunks + seq_len // chunk_size
+    chunks_shape = (num_chunks_with_padding, chunk_size + 1)
+    get_chunks = partial(memmap, chunks_memmap_path, dtype=np.int32, shape=chunks_shape)
+    get_seqs = partial(memmap, seqs_memmap_path, dtype=np.int32, shape=(num_seqs,))
+    get_docs = partial(memmap, doc_ids_memmap_path, dtype=np.int32, shape=(num_chunks_with_padding,))
+
+    with get_chunks() as chunks_memmap, get_docs() as docs_memmap, get_seqs() as seqs_memmap:
+        with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode='w+') as chunks_memmap_c,\
+                memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype=np.int32, mode='w+') as docs_memmap_c,\
+                memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode='w+') as seqs_memmap_c:
+            chunks_memmap_c[:, :] = chunks_memmap[:, :]
+            docs_memmap_c[:] = docs_memmap[:]
+            seqs_memmap_c[:] = seqs_memmap[:]
+
 # function that returns knn chunks from seq chunks
 #
 # 1. adds sos and eos to seq chunks
@@ -330,6 +346,12 @@ class TrainingWrapper(nn.Module):
 
     def get_valid_dataloader(self, **kwargs):
         return DataLoader(self.valid_ds, **kwargs)
+
+    def get_train_dataset(self):
+        return self.train_ds
+
+    def get_valid_dataset(self):
+        return self.valid_ds
 
     def get_optimizer(self, **kwargs):
         return get_optimizer(self.retro.parameters(), **kwargs)

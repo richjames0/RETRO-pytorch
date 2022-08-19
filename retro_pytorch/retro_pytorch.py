@@ -660,4 +660,17 @@ class RETRO(nn.Module):
         # cross entropy loss
 
         loss = F.cross_entropy(rearrange(logits, 'b n c -> b c n'), labels, ignore_index = self.pad_id)
-        return loss.unsqueeze(0)
+        # print(loss)
+        # input_ = F.log_softmax(logits)
+        # nll = F.nll_loss(rearrange(input_, 'b n c -> b c n'), labels, ignore_index = self.pad_id)
+        # print(nll)
+
+        # model_emissions = rearrange(logits, 'b n c -> b c n')
+        # log_softmax_model_emissions = torch.nn.functional.log_softmax(model_emissions, dim=1)
+        # ground_truth = labels
+        # ce = torch.nn.functional.cross_entropy(model_emissions, ground_truth)
+        # print(ce)
+        # nll = torch.nn.functional.nll_loss(log_softmax_model_emissions, ground_truth)  # .nonzero()[:, 0], reduction='mean')
+        # print(nll)
+
+        return loss.unsqueeze(0)  # TODO: calculate ppl on a per sequence basis
