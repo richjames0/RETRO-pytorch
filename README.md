@@ -25,6 +25,9 @@ One option (created/tested by Pedro), is to:
 3. Activate: `conda activate retro`
 4. Install: `poetry install`
 
+
+### With Pip
+
 ```bash
 $ pip install retro-pytorch
 ````
