@@ -1,3 +1,4 @@
+import pickle as pkl
 from collections import defaultdict
 from math import sqrt
 from pathlib import Path
@@ -133,7 +134,7 @@ def jsonl_folder_iterator(folder, glob):
     for path in paths:
         with jsonlines.open(path) as reader:
             for obj in reader:
-                yield obj["text"]
+                yield obj["text"], path.name
 
 
 # def jsonl_iterator(fname):
@@ -187,24 +188,33 @@ def _text_to_chunks(
     seqs_shape = (max_seqs,)
     doc_ids_shape = (max_chunks,)
 
+    # TODO: docs for a given filename are a contiguous list so, with a bit more bookkeeping we could compress this structure
+    filenames_to_docs = defaultdict(list)
+
     with memmap(chunks_memmap_path, shape=chunks_shape, dtype=np.int32, mode="w+") as chunks_memmap, memmap(
         seqs_memmap_path, shape=seqs_shape, dtype=np.int32, mode="w+"
     ) as seqs_memmap, memmap(doc_ids_memmap_path, shape=doc_ids_shape, dtype=np.int32, mode="w+") as doc_ids_memmap:
 
-        for text in text_iterator:
+        for text, filename in text_iterator:
             chunks, seq = doc_text_to_chunks_and_seq_indices(doc_text=text, chunk_size=chunk_size, seq_len=seq_len)
 
             doc_chunk_len = chunks.shape[0]
             doc_seq_len = seq.shape[0]
 
-            if doc_chunk_len > max_chunks - total_chunks or doc_seq_len > max_seqs - total_seqs:
+            if doc_chunk_len > max_chunks - total_chunks:
                 assert False
                 print(f"Hit max seqs / chunks, stopping")
+                break
+            if doc_seq_len > max_seqs - total_seqs:
+                assert False
+                print(f"Hit max seqs in {filename}; stopping")
                 break
 
             chunks_memmap[total_chunks : (total_chunks + doc_chunk_len)] = chunks.numpy()
             seqs_memmap[total_seqs : (total_seqs + doc_seq_len)] = seq.numpy() + total_chunks
+            # map each chunk to doc_id, having form 0, 0, ..., 1, 1,  ... 2, 2,
             doc_ids_memmap[total_chunks : (total_chunks + doc_chunk_len)] = np.full((doc_chunk_len,), total_docs)
+            filenames_to_docs[filename].append(total_docs)
 
             total_chunks += doc_chunk_len
             total_seqs += doc_seq_len
@@ -215,7 +225,9 @@ def _text_to_chunks(
 
         # shuffle at one of last places before split into train, validation
         np.random.shuffle(seqs_memmap[0 : (total_seqs + doc_seq_len)])
-        #  = np.random.permutation(seqs_memmap[0:(total_seqs + doc_seq_len)])
+
+        with open(f"{doc_ids_memmap_path}.map", "wb") as f:
+            pkl.dump(filenames_to_docs, f)
 
     return dict(chunks=total_chunks, docs=total_docs, seqs=total_seqs)
 
