@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 from annotated_text import annotated_text
 
 from retro_pytorch.retrieval import get_tokenizer
-
+from retro_pytorch.utils import parse_meta
 
 DATA_DIR = Path("/datasets01/gptz_corpus_dedup_10_10_1_0.05_exp29/120321/")
 
@@ -23,16 +23,6 @@ def read_corpus(*, fold: str, partition: str, domain: str, limit: int = 100, off
             if idx >= limit:
                 break
     return docs
-
-
-def parse_meta(entry: Dict):
-    if "id" in entry:
-        doc_id = entry["id"]
-    elif "filename" in entry["meta"]:
-        doc_id = entry["meta"]["filename"]
-    else:
-        raise Exception(f"Unknown Doc ID for: {entry}")
-    return {"doc_id": doc_id, "pile_set_name": entry["meta"]["pile_set_name"]}
 
 
 def text_with_scrollbar(text):
