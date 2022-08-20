@@ -84,6 +84,7 @@ def top_p(logits, thres=0.9):
     return sorted_logits.scatter(1, sorted_indices, sorted_logits)
 
 
+# fmt: off
 def compact_files(
     num_chunks: int,
     num_seqs: int,
@@ -100,15 +101,10 @@ def compact_files(
     get_docs = partial(memmap, doc_ids_memmap_path, dtype=np.int32, shape=(num_chunks_with_padding,))
 
     with get_chunks() as chunks_memmap, get_docs() as docs_memmap, get_seqs() as seqs_memmap:
-        with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode='w+') as chunks_memmap_c, memmap(
-            doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype=np.int32, mode='w+'
-        ) as docs_memmap_c, memmap(
-            seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode='w+'
-        ) as seqs_memmap_c:
-            chunks_memmap_c[:, :] = chunks_memmap[:, :]
-            docs_memmap_c[:] = docs_memmap[:]
-            seqs_memmap_c[:] = seqs_memmap[:]
-
+        with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode='w+') as chunks_memmap_c,\
+                memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype=np.int32, mode='w+') as docs_memmap_c,\
+                memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode='w+') as seqs_memmap_c:
+# fmt: on
 
 # function that returns knn chunks from seq chunks
 #
