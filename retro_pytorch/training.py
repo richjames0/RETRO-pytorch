@@ -104,6 +104,9 @@ def compact_files(
         with memmap(chunks_memmap_path + '_c', shape=chunks_memmap.shape, dtype=np.int32, mode='w+') as chunks_memmap_c,\
                 memmap(doc_ids_memmap_path + '_c', shape=docs_memmap.shape, dtype=np.int32, mode='w+') as docs_memmap_c,\
                 memmap(seqs_memmap_path + '_c', shape=seqs_memmap.shape, dtype=np.int32, mode='w+') as seqs_memmap_c:
+            chunks_memmap_c[:, :] = chunks_memmap[:, :]
+            docs_memmap_c[:] = docs_memmap[:]
+            seqs_memmap_c[:] = seqs_memmap[:]
 # fmt: on
 
 # function that returns knn chunks from seq chunks
