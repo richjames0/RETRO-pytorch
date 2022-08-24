@@ -340,7 +340,8 @@ def train_faiss_index(embeddings, index_path):
     # Also note that this index requires *at least* ~16x4 bits of RAM for every stored vector.
     # That's around 43 GB for 5.8B vectors.
     # TODO: Above comment is not correct given current key
-    index = faiss.index_factory(BERT_MODEL_DIM, f'OPQ16_64,IVF{num_clusters}_HNSW32,PQ16x4fs')
+    index = faiss.index_factory(BERT_MODEL_DIM, f'IVF{num_clusters},PQ768')
+    # index = faiss.index_factory(BERT_MODEL_DIM, f'OPQ16_64,IVF{num_clusters}_HNSW32,PQ16x4fs')
     # PCA256,L2norm,IVF1024,PCAR128,SHg')  #
 
     # From https://gist.github.com/mdouze/46d6bbbaabca0b9778fca37ed2bcccf6
