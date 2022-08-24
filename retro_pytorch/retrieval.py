@@ -59,7 +59,6 @@ TOKENIZER = None
 def get_tokenizer():
     global TOKENIZER
     if not exists(TOKENIZER):
-        print('Using UNCASED tokenizer')
         TOKENIZER = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', f'bert-base-{"" if CASED else "un"}cased')
     return TOKENIZER
 
