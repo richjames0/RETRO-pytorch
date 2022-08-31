@@ -86,14 +86,17 @@ def top_p(logits, thres=0.9):
 
 # fmt: off
 def compact_files(
-    num_chunks: int,
-    num_seqs: int,
+    stats_path: str,
     chunk_size: int,
     chunks_memmap_path: str,
     seqs_memmap_path: str,
     doc_ids_memmap_path: str,
     seq_len: int,
 ) -> None:
+    stats = json.loads(Path(stats_path).read_text())
+    num_chunks = stats['chunks']
+    num_seqs = stats['seqs']
+
     num_chunks_with_padding = num_chunks + seq_len // chunk_size
     chunks_shape = (num_chunks_with_padding, chunk_size + 1)
     get_chunks = partial(memmap, chunks_memmap_path, dtype=np.int32, shape=chunks_shape)
