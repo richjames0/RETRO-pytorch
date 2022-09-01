@@ -198,6 +198,7 @@ def _text_to_chunks(
     with memmap(chunks_memmap_path, shape=chunks_shape, dtype=np.int32, mode='w+') as chunks_memmap, memmap(
         seqs_memmap_path, shape=seqs_shape, dtype=np.int32, mode='w+'
     ) as seqs_memmap, memmap(doc_ids_memmap_path, shape=doc_ids_shape, dtype=np.int32, mode='w+') as doc_ids_memmap:
+        logging.info('Processing docs (chunking, etc.)')
 
         for text, filename in text_iterator:
             chunks, seq = doc_text_to_chunks_and_seq_indices(doc_text=text, chunk_size=chunk_size, seq_len=seq_len)
@@ -206,13 +207,13 @@ def _text_to_chunks(
             doc_seq_len = seq.shape[0]
 
             if doc_chunk_len > max_chunks - total_chunks:
-                assert False
-                print(f'Hit max chunks in {filename}; stopping')
-                break
+                msg = f'Hit max chunks in {filename}; stopping'
+                logging.error(msg)
+                raise Exception(msg)
             if doc_seq_len > max_seqs - total_seqs:
-                assert False
-                print(f'Hit max seqs in {filename}; stopping')
-                break
+                msg = f'Hit max seqs in {filename}; stopping'
+                logging.error(msg)
+                raise Exception(msg)
 
             chunks_memmap[total_chunks : (total_chunks + doc_chunk_len)] = chunks.numpy()
             seqs_memmap[total_seqs : (total_seqs + doc_seq_len)] = seq.numpy() + total_chunks
@@ -225,7 +226,9 @@ def _text_to_chunks(
             total_docs += 1
 
             if total_docs % 1000 == 0:
-                print(f'Processed {total_docs} docs')
+                logging.debug(f'Processed {total_docs} docs so far')
+
+        logging.debug(f'Finished processing docs')
 
         # shuffle at one of last places before split into train, validation
         np.random.shuffle(seqs_memmap[0:(total_seqs)])
@@ -296,6 +299,7 @@ def chunks_to_embeddings_(
     with memmap(chunks_memmap_path, shape=chunks_shape, dtype=np.int32) as chunks, memmap(
         embeddings_memmap_path, shape=embed_shape, dtype=np.float32, mode='w+'
     ) as embeddings:
+        logging.info('Embedding chunks')
 
         for idx, dim_slice in enumerate(range_chunked(num_chunks, batch_size=batch_size)):
             # If num_workers is 10, each worker does every 10'th batch (offset by worker_id)
@@ -316,7 +320,9 @@ def chunks_to_embeddings_(
             batch_embed = bert_embed(batch_chunk, return_cls_repr=use_cls_repr)
 
             embeddings[dim_slice] = batch_embed.detach().cpu().numpy()
-            print(f'embedded {dim_slice.stop} / {num_chunks}')
+            logging.debug(f'Embedded {dim_slice.stop} / {num_chunks}')
+
+        logging.debug(f'Finished embedding chunks')
 
 
 def train_faiss_index(embeddings, index_path):
@@ -330,7 +336,7 @@ def train_faiss_index(embeddings, index_path):
     else:
         num_clusters = 1048576
     num_train_examples = min(num_clusters * 64, embeddings.shape[0])
-    print(
+    logging.info(
         f'Training an IVF index with {num_clusters} clusters on {num_train_examples} training examples (out of {embeddings.shape[0]} total vectors).'
     )
 
@@ -347,7 +353,7 @@ def train_faiss_index(embeddings, index_path):
     # From https://gist.github.com/mdouze/46d6bbbaabca0b9778fca37ed2bcccf6
     # For a sense of the speedup you get from using GPUs:
     # Clustering 3.5M points to 50k clusters takes about 2 min on a V100 and 20 min on AVX2.
-    print(f'Using {faiss.get_num_gpus()} gpus for index training')
+    logging.info(f'Using {faiss.get_num_gpus()} gpus for index training')
     index_ivf = faiss.extract_index_ivf(index)
     clustering_index = faiss.index_cpu_to_all_gpus(faiss.IndexFlatL2(index_ivf.d))
     index_ivf.clustering_index = clustering_index
@@ -363,12 +369,12 @@ def train_faiss_index(embeddings, index_path):
         train_embeds = embeddings
 
     timer_logger = lambda x: None
-    print(f'Training index')
+    logging.info('Training index')
     with Timer('index training', logger=timer_logger):
         # Apparently FAISS plays nice with numpy memmap.
         index.train(train_embeds)
-    print('Done training index')
-    print(Timer.timers)
+    logging.info('Done training index')
+    logging.debug(Timer.timers)
 
     # Save the index immediately after training (which takes a long
     # time) in case we fail for some reason to add the embeds to the index.
@@ -397,21 +403,24 @@ def index_embeddings(
             # higher threads?
             faiss.omp_set_num_threads(faiss_num_threads)
 
-        print(f'Adding embeds to index...')
+        num_embeds = embeddings.shape[0]
+        logging.info(f'Adding {num_embeds} embeds to index')
         # Do it in chunks so we don't run out of RAM. For 5.8 B embeddings
         # and 4 threads, this took around 2 days.
         last_billion = 0
-        for dim_slice in range_chunked(embeddings.shape[0], batch_size=128):
+        for dim_slice in range_chunked(num_embeds, batch_size=128):
             if dim_slice.start % (128 * 1000) == 0:
-                print(dim_slice.start)
+                logging.debug(f'{dim_slice.start} / {num_embeds}')
                 if dim_slice.start // 1_000_000_000 > last_billion:
                     last_billion += 1
-                    print(f'Writing index to {index_path} ({last_billion} billion)...')
+                    logging.info(f'Writing index to {index_path} ({last_billion} billion)')
                     faiss.write_index(index, str(index_path))
             index.add(embeddings[dim_slice])
 
-        print(f'Writing index to {index_path}...')
+        logging.info(f'Writing index to {index_path}')
         faiss.write_index(index, str(index_path))
+        logging.info(f'Index written')
+
         return index
 
 
@@ -475,7 +484,7 @@ def chunks_to_precalculated_knn_(
     # unless if force_reprocess is True
 
     if index_path.exists() and knn_path.exists() and not force_reprocess:
-        print(f'preprocessed knn found at {str(knn_path)}, faiss index reconstituted from {str(index_path)}')
+        logging.info(f'Preprocessed knns found at {str(knn_path)}, Faiss index reconstituted from {str(index_path)}')
         index = faiss_read_index(index_path)
         return knn_path, index
 
@@ -484,7 +493,7 @@ def chunks_to_precalculated_knn_(
     embed_shape = (num_chunks, embed_dim)
     embedding_path = f'{chunk_memmap_path}.embedded'
     if index_path.exists() and Path(embedding_path).exists() and not force_reprocess:
-        print('using pre-computed faiss index reconstituted from {str(index_path)}, embeddings found at {str(embedding_path)}')
+        logging.info(f'Using precomputed Faiss index reconstituted from {str(index_path)}, embeddings found at {str(embedding_path)}')
         index = faiss_read_index(index_path)
         embeddings = np.memmap(embedding_path, shape=embed_shape, dtype=np.float32, mode='r')
     else:
@@ -503,6 +512,7 @@ def chunks_to_precalculated_knn_(
     with memmap(knn_path, shape=(num_chunks, num_nearest_neighbors), dtype=np.int32, mode='w+') as knns, memmap(
         doc_ids_memmap_path, shape=(num_chunks,), dtype=np.int32, mode='r'
     ) as doc_ids:
+        logging.info('Calculating knns')
 
         for dim_slice in range_chunked(num_chunks, batch_size=max_rows_per_file):
             query_vector = embeddings[dim_slice]
@@ -527,5 +537,6 @@ def chunks_to_precalculated_knn_(
             # store nearest neighbors to knn memmap
             knns[dim_slice] = indices[:, :num_nearest_neighbors]
 
-    print(f'knn saved to {knn_path}')
+    logging.info(f'Knns saved to {knn_path}')
+
     return knn_path, index
