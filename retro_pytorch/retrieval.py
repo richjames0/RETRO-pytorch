@@ -17,7 +17,7 @@ import faiss
 from retro_pytorch.utils import memmap
 
 # constants
-
+TRAINED_INDEX_SUFFIX = '.trained'
 CASED = False
 SOS_ID = 101
 EOS_ID = 102
@@ -379,7 +379,7 @@ def train_faiss_index(embeddings, index_path):
 
     # Save the index immediately after training (which takes a long
     # time) in case we fail for some reason to add the embeds to the index.
-    faiss.write_index(index, str(index_path) + '.trained')
+    faiss.write_index(index, str(index_path) + TRAINED_INDEX_SUFFIX)
 
     return index
 
@@ -388,14 +388,15 @@ def index_embeddings(
     embeddings_path,
     embed_shape,
     index_path,
-    pretrained_index_path=None,
     faiss_num_threads=None,
 ):
     with memmap(embeddings_path, shape=embed_shape, dtype=np.float32, mode='r') as embeddings:
-        if not pretrained_index_path:
-            index = train_faiss_index(embeddings, index_path)
-        else:
+        pretrained_index_path = index_path + TRAINED_INDEX_SUFFIX
+        # we can do this because it's only created when the (long) process is completed
+        if Path(pretrained_index_path).exists():
             index = faiss.read_index(pretrained_index_path)
+        else:
+            index = train_faiss_index(embeddings, index_path)
 
         if faiss_num_threads:
             # mitchg - I've had problems running at the default thread
