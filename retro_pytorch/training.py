@@ -1,6 +1,7 @@
 import json
 from functools import partial
 from pathlib import Path
+import logging
 
 import numpy as np
 import torch
@@ -209,7 +210,7 @@ class TrainingWrapper(nn.Module):
             with open(processed_stats_json_path, 'w') as f:
                 json.dump(self.stats, f)
         else:
-            print(f'found to be previously processed at {str(stats_path)}')
+            logging.info(f'Text inputs found to be previously processed at {str(stats_path)}')
             self.stats = json.loads(stats_path.read_text())
 
         # get number of chunks and number of sequences
@@ -232,11 +233,11 @@ class TrainingWrapper(nn.Module):
             **index_kwargs,
         )
 
-        print(f'num_seqs: {num_seqs}')
+        logging.info(f'Num_seqs: {num_seqs}')
         num_valid_seqs = int(VALID_SPLIT * num_seqs)
         num_train_seqs = num_seqs - num_valid_seqs
-        print(f'num_valid_seqs: {num_valid_seqs}')
-        print(f'num_train_seqs: {num_train_seqs}')
+        logging.debug(f'num_valid_seqs: {num_valid_seqs}')
+        logging.debug(f'num_train_seqs: {num_train_seqs}')
 
         self.train_ds = RETRODataset(
             total_num_sequences=num_seqs,
@@ -358,7 +359,7 @@ class TrainingWrapper(nn.Module):
                 knn_chunks = rearrange(knn_chunks, 'b k r -> b 1 k r')
                 retrieved = safe_cat(retrieved, knn_chunks, dim=1)
 
-                print(f'retrieved at {curr_seq_len} / {self.max_seq_len}')
+                logging.info(f'Retrieved at {curr_seq_len} / {self.max_seq_len}')
 
         return out
 
