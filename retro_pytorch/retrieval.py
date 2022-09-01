@@ -4,6 +4,7 @@ from math import ceil
 from math import sqrt
 import pickle as pkl
 import jsonlines
+import os
 
 import torch
 import torch.nn.functional as F
@@ -438,15 +439,17 @@ def chunks_to_index_and_embed(
 ):
     embed_shape = (num_chunks, embed_dim)
 
-    chunks_to_embeddings_(
-        num_chunks=num_chunks,
-        chunk_size=chunk_size,
-        chunks_memmap_path=chunk_memmap_path,
-        embeddings_memmap_path=embedding_path,
-        use_cls_repr=use_cls_repr,
-        batch_size=chunks_to_embeddings_batch_size,
-        embed_dim=embed_dim,
-    )
+    # TODO: this isn't ideal but creating embeddings takes so long it could be risky to assume presence of the file means all is well
+    if os.environ.get('SKIP_EMBEDS') != '1':
+        chunks_to_embeddings_(
+            num_chunks=num_chunks,
+            chunk_size=chunk_size,
+            chunks_memmap_path=chunk_memmap_path,
+            embeddings_memmap_path=embedding_path,
+            use_cls_repr=use_cls_repr,
+            batch_size=chunks_to_embeddings_batch_size,
+            embed_dim=embed_dim,
+        )
 
     index = index_embeddings(
         embeddings_path=embedding_path,
