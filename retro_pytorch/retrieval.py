@@ -290,6 +290,10 @@ def chunks_to_embeddings_(
     chunks_shape = (num_chunks, chunk_size + 1)
     embed_shape = (num_chunks, embed_dim)
 
+    # TODO: delete this and also num_workers code below unless choose to revive completely
+    #       but note the latter would entail starting a bunch of processes which just call this function
+    #       likely will take work to make this work since old code was broken and doesn't look good from
+    #       the perspective of calling this directly either (e.g. when does the file ever get created)
     # if worker_id is not None:
     #     if not Path(embeddings_memmap_path + '.part1').exists():
     #         raise FileNotFoundError(f"When embedding with worker_ids, the numpy file must already exist to avoid accidental truncation of other worker output. Please create it by running from retro_pytorch.utils import BertEmbeds; BertEmbeds(fname = '{embeddings_memmap_path}', shape={embed_shape}, dtype=np.float32, mode='w+') before running any workers.")
@@ -303,6 +307,7 @@ def chunks_to_embeddings_(
         logging.info('Embedding chunks')
 
         for idx, dim_slice in enumerate(range_chunked(num_chunks, batch_size=batch_size)):
+            # TODO: see todo above
             # If num_workers is 10, each worker does every 10'th batch (offset by worker_id)
             # if idx % num_workers != worker_id:
             #     continue
