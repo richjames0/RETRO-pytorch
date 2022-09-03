@@ -179,6 +179,7 @@ class TrainingWrapper(nn.Module):
         knn_extra_neighbors=100,
         processed_stats_json_path='./processed-stats.json',
         index_path,
+        retrieve: bool,
         **index_kwargs,
     ):
         super().__init__()
@@ -250,6 +251,7 @@ class TrainingWrapper(nn.Module):
             chunk_memmap_path=chunks_memmap_path,
             chunk_nn_memmap_path=knn_memmap_path,
             seq_memmap_path=seqs_memmap_path,
+            retrieve=retrieve,
         )
 
         self.valid_ds = RETRODataset(
@@ -263,6 +265,7 @@ class TrainingWrapper(nn.Module):
             chunk_memmap_path=chunks_memmap_path,
             chunk_nn_memmap_path=knn_memmap_path,
             seq_memmap_path=seqs_memmap_path,
+            retrieve=retrieve,
         )
 
         # params needed for generation

@@ -70,6 +70,7 @@ class RETRODataset(Dataset):
         eos_id=EOS_ID,
         pad_id=0.0,
         add_continuations=True,
+        retrieve,
     ):
         super().__init__()
         self.num_chunks = num_chunks
@@ -78,6 +79,7 @@ class RETRODataset(Dataset):
         self.seq_num_chunks = seq_len // chunk_size
         self.eos_id = eos_id
         self.pad_id = pad_id
+        self.retrieve = retrieve
 
         num_chunks_with_padding = num_chunks + self.seq_num_chunks
 
@@ -93,7 +95,7 @@ class RETRODataset(Dataset):
         return self.num_sequences
 
     def __getitem__(self, ind):
-        with self.get_chunks() as chunks_memmap, self.get_knns() as knns_memmap, self.get_seqs() as seqs_memmap:
+        with self.get_chunks() as chunks_memmap, self.get_seqs() as seqs_memmap:
             begin_chunk_index = seqs_memmap[ind + self.sequences_offset]
             chunk_range = slice(begin_chunk_index, (begin_chunk_index + self.seq_num_chunks))
 
@@ -109,13 +111,15 @@ class RETRODataset(Dataset):
             seq_mask = np.pad(seq_mask, (1, 0))[:-1] == 0.0
             seq_tokens = np.where(seq_mask, seq_tokens, 0.0)
 
-            # derive retrieved tokens
+            retrieved = np.empty(0)
+            if self.retrieve:
+                # derive retrieved tokens
+                with self.get_knns() as knns_memmap:
+                    knns = knns_memmap[chunk_range]
 
-            knns = knns_memmap[chunk_range]
-
-            retrieved = knn_to_retrieved_chunks(
-                knns, chunks_memmap, add_continuations=self.add_continuations, eos_id=self.eos_id, num_chunks=self.num_chunks
-            )
+                    retrieved = knn_to_retrieved_chunks(
+                        knns, chunks_memmap, add_continuations=self.add_continuations, eos_id=self.eos_id, num_chunks=self.num_chunks
+                    )
 
         seq_tokens_torch = torch.from_numpy(seq_tokens).long()
         retrieved_torch = torch.from_numpy(retrieved).long()
