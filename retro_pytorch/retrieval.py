@@ -360,28 +360,30 @@ def train_faiss_index(embeddings, index_path):
     # From https://gist.github.com/mdouze/46d6bbbaabca0b9778fca37ed2bcccf6
     # For a sense of the speedup you get from using GPUs:
     # Clustering 3.5M points to 50k clusters takes about 2 min on a V100 and 20 min on AVX2.
-    logging.info(f'Using {faiss.get_num_gpus()} gpus for index training')
-    index_ivf = faiss.extract_index_ivf(index)
-    clustering_index = faiss.index_cpu_to_all_gpus(faiss.IndexFlatL2(index_ivf.d))
-    index_ivf.clustering_index = clustering_index
 
-    # Look at all the embeddings in the top 5 closest voronoi cells when doing the IVF lookup
-    # TODO (mitchg) - tinker with this later
-    index.nprobe = 5
+    # FIXME: commenting out for temporary use of flat index
+    # logging.info(f'Using {faiss.get_num_gpus()} gpus for index training')
+    # index_ivf = faiss.extract_index_ivf(index)
+    # clustering_index = faiss.index_cpu_to_all_gpus(faiss.IndexFlatL2(index_ivf.d))
+    # index_ivf.clustering_index = clustering_index
 
-    if num_train_examples < embeddings.shape[0]:
-        # This doesn't make a copy in RAM unless you cross the internal BERT filesize limit (10 TB)
-        train_embeds = embeddings[0:num_train_examples]
-    else:
-        train_embeds = embeddings
+    # # Look at all the embeddings in the top 5 closest voronoi cells when doing the IVF lookup
+    # # TODO (mitchg) - tinker with this later
+    # index.nprobe = 5
 
-    timer_logger = lambda x: None
-    logging.info('Training index')
-    with Timer('index training', logger=timer_logger):
-        # Apparently FAISS plays nice with numpy memmap.
-        index.train(train_embeds)
-    logging.info('Done training index')
-    logging.debug(Timer.timers)
+    # if num_train_examples < embeddings.shape[0]:
+    #     # This doesn't make a copy in RAM unless you cross the internal BERT filesize limit (10 TB)
+    #     train_embeds = embeddings[0:num_train_examples]
+    # else:
+    #     train_embeds = embeddings
+
+    # timer_logger = lambda x: None
+    # logging.info('Training index')
+    # with Timer('index training', logger=timer_logger):
+    #     # Apparently FAISS plays nice with numpy memmap.
+    #     index.train(train_embeds)
+    # logging.info('Done training index')
+    # logging.debug(Timer.timers)
 
     # Save the index immediately after training (which takes a long
     # time) in case we fail for some reason to add the embeds to the index.
