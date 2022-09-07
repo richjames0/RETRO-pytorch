@@ -8,43 +8,14 @@ import streamlit.components.v1 as components
 from annotated_text import annotated_text
 
 from retro_pytorch.retrieval import get_tokenizer
+from retro_pytorch.streamlit import (
+    DATA_DIR,
+    DOMAINS,
+    FOLDS,
+    read_corpus,
+    text_with_scrollbar,
+)
 from retro_pytorch.utils import parse_meta
-
-DATA_DIR = Path("/datasets01/gptz_corpus_dedup_10_10_1_0.05_exp29/120321/")
-
-FILE_HANDLES = {}
-
-
-def read_corpus(*, fold: str, partition: str, domain: str, limit: int = 100, offset: int = 0):
-    docs = []
-    with jsonlines.jsonlines.open(DATA_DIR / fold / partition / f"{domain}.jsonl") as f:
-        for idx, row in enumerate(f):
-            docs.append(row)
-            if idx >= limit:
-                break
-    return docs
-
-
-def text_with_scrollbar(text):
-    components.html(f"""<div style="height:450px; overflow: scroll;">{text}</div>""", height=500)
-
-
-DOMAINS = [
-    "BookCorpusFair",
-    "ccnewsv2",
-    "CommonCrawl",
-    "DM_Mathematics",
-    "Enron_Emails",
-    "Gutenberg_PG-19",
-    "HackerNews",
-    "OpenSubtitles",
-    "OpenWebText2",
-    "redditflattened",
-    "stories",
-    "USPTO",
-    "Wikipedia_en",
-]
-FOLDS = ["train", "valid"]
 
 st.title("Retro Dataset Viewer")
 with st.sidebar:

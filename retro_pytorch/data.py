@@ -67,10 +67,11 @@ class RETRODataset(Dataset):
         chunk_memmap_path,
         chunk_nn_memmap_path,
         seq_memmap_path,
+        retrieve,
         eos_id=EOS_ID,
         pad_id=0.0,
         add_continuations=True,
-        retrieve,
+        memmap_mode="r",
     ):
         super().__init__()
         self.num_chunks = num_chunks
@@ -83,13 +84,16 @@ class RETRODataset(Dataset):
 
         num_chunks_with_padding = num_chunks + self.seq_num_chunks
 
-        chunks_shape = (num_chunks_with_padding, chunk_size + 1)
-        knn_shape = (num_chunks_with_padding, num_neighbors)
+        self.chunks_shape = (num_chunks_with_padding, chunk_size + 1)
+        self.knn_shape = (num_chunks_with_padding, num_neighbors)
 
         self.add_continuations = add_continuations
-        self.get_chunks = partial(memmap, chunk_memmap_path, dtype=np.int32, shape=chunks_shape)
-        self.get_knns = partial(memmap, chunk_nn_memmap_path, dtype=np.int32, shape=knn_shape)
-        self.get_seqs = partial(memmap, seq_memmap_path, dtype=np.int32, shape=(total_num_sequences,))
+        self.chunk_memmap_path = chunk_memmap_path
+        self.chunk_nn_memmap_path = chunk_nn_memmap_path
+        self.seq_memmap_path = seq_memmap_path
+        self.get_chunks = partial(memmap, chunk_memmap_path, dtype=np.int32, shape=self.chunks_shape, mode=memmap_mode)
+        self.get_knns = partial(memmap, chunk_nn_memmap_path, dtype=np.int32, shape=self.knn_shape, mode=memmap_mode)
+        self.get_seqs = partial(memmap, seq_memmap_path, dtype=np.int32, shape=(total_num_sequences,), mode=memmap_mode)
 
     def __len__(self):
         return self.num_sequences
@@ -118,7 +122,11 @@ class RETRODataset(Dataset):
                     knns = knns_memmap[chunk_range]
 
                     retrieved = knn_to_retrieved_chunks(
-                        knns, chunks_memmap, add_continuations=self.add_continuations, eos_id=self.eos_id, num_chunks=self.num_chunks
+                        knns,
+                        chunks_memmap,
+                        add_continuations=self.add_continuations,
+                        eos_id=self.eos_id,
+                        num_chunks=self.num_chunks,
                     )
 
         seq_tokens_torch = torch.from_numpy(seq_tokens).long()
