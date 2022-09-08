@@ -505,7 +505,9 @@ def chunks_to_precalculated_knn_(
     embed_shape = (num_chunks, embed_dim)
     embedding_path = f'{chunk_memmap_path}.embedded'
     if index_path.exists() and Path(embedding_path).exists() and not force_reprocess:
-        logging.info(f'Using precomputed Faiss index reconstituted from {str(index_path)}, embeddings found at {str(embedding_path)}')
+        logging.info(
+            f'Using precomputed Faiss index reconstituted from {str(index_path)}, embeddings found at {str(embedding_path)}'
+        )
         index = faiss_read_index(index_path)
         embeddings = np.memmap(embedding_path, shape=embed_shape, dtype=np.float32, mode='r')
     else:
