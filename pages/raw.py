@@ -8,14 +8,21 @@ import streamlit.components.v1 as components
 from annotated_text import annotated_text
 
 from retro_pytorch.retrieval import get_tokenizer
-from retro_pytorch.streamlit import (
-    DATA_DIR,
-    DOMAINS,
-    FOLDS,
-    read_corpus,
-    text_with_scrollbar,
-)
+from retro_pytorch.streamlit import DOMAINS, FOLDS, read_corpus, text_with_scrollbar
 from retro_pytorch.utils import parse_meta
+
+DATA_DIR = Path("/datasets01/gptz_corpus_dedup_10_10_1_0.05_exp29/120321/")
+
+
+def read_corpus(*, fold: str, partition: str, domain: str, limit: int = 100, offset: int = 0):
+    docs = []
+    with jsonlines.jsonlines.open(DATA_DIR / fold / partition / f"{domain}.jsonl") as f:
+        for idx, row in enumerate(f):
+            docs.append(row)
+            if idx >= limit:
+                break
+    return docs
+
 
 st.title("Retro Dataset Viewer")
 with st.sidebar:
