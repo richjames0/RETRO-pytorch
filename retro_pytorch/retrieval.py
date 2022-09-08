@@ -16,7 +16,7 @@ import faiss
 
 from retro_pytorch.utils import memmap
 
-# constants
+LOG_KNNS_EVERY = 8_000  # under a minute on devfair
 TRAINED_INDEX_SUFFIX = '.trained'
 CASED = False
 SOS_ID = 101
@@ -527,6 +527,9 @@ def chunks_to_precalculated_knn_(
         logging.info('Calculating knns')
 
         for dim_slice in range_chunked(num_chunks, batch_size=max_rows_per_file):
+            if ((dim_slice.start + max_rows_per_file) % LOG_KNNS_EVERY) == 0:
+                logging.debug(f'Calculating knns {dim_slice.start} / {num_chunks}')  # TODO: THIS SHOULD BE A FUNCTION OF BATCH SIZE. 4k is 30 mins vs. 1 min 1k
+
             query_vector = embeddings[dim_slice]
 
             distances, indices = index.search(query_vector, k=total_neighbors_to_fetch)
