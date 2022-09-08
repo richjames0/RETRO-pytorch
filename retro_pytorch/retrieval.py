@@ -1,18 +1,17 @@
-from collections import defaultdict
-from pathlib import Path
-from math import ceil
-from math import sqrt
-import pickle as pkl
-import jsonlines
+import logging
 import os
+import pickle as pkl
+from collections import defaultdict
+from math import ceil, sqrt
+from pathlib import Path
 
+import faiss
+import jsonlines
+import numpy as np
 import torch
 import torch.nn.functional as F
-import logging
-import numpy as np
-from einops import rearrange
 from codetiming import Timer
-import faiss
+from einops import rearrange
 
 from retro_pytorch.utils import memmap
 
