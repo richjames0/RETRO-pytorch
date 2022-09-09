@@ -4,11 +4,10 @@ from typing import Dict
 
 import jsonlines
 import streamlit as st
-import streamlit.components.v1 as components
 from annotated_text import annotated_text
 
 from retro_pytorch.retrieval import get_tokenizer
-from retro_pytorch.streamlit import DOMAINS, FOLDS, read_corpus, text_with_scrollbar
+from retro_pytorch.streamlit import DOMAINS, FOLDS, text_with_scrollbar
 from retro_pytorch.utils import parse_meta
 
 DATA_DIR = Path("/datasets01/gptz_corpus_dedup_10_10_1_0.05_exp29/120321/")
