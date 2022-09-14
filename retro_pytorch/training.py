@@ -1,7 +1,7 @@
 import json
+import logging
 from functools import partial
 from pathlib import Path
-import logging
 
 import numpy as np
 import torch

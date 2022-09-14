@@ -38,10 +38,8 @@ jobs:
         continue-on-error: true
       - name: Code Format - Black
         run: poetry run black --skip-string-normalization --check .
-        continue-on-error: true
       - name: Code Format - isort
         run: poetry run isort --check .
-        continue-on-error: true
       - name: Test with pytest
         run: |
           poetry run pytest
