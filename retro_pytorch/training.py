@@ -362,7 +362,7 @@ class TrainingWrapper(nn.Module):
                 knn_chunks = rearrange(knn_chunks, 'b k r -> b 1 k r')
                 retrieved = safe_cat(retrieved, knn_chunks, dim=1)
 
-                logging.info(f'Retrieved at {curr_seq_len} / {self.max_seq_len}')
+                logging.debug(f'Retrieved at {curr_seq_len} / {self.max_seq_len}')
 
         return out
 
