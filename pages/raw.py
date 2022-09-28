@@ -4,7 +4,7 @@ from typing import Dict
 
 import jsonlines
 import streamlit as st
-from annotated_text import annotated_text
+from annotated_text import annotated_text, annotation
 
 from retro_pytorch.retrieval import get_tokenizer
 from retro_pytorch.streamlit import DOMAINS, FOLDS, text_with_scrollbar
@@ -47,7 +47,9 @@ st.subheader("Document Text")
 text_with_scrollbar(document["text"])
 
 st.subheader("Tokenized Text")
-tokens = [(t, f"{idx}") for idx, t in enumerate(tokenizer.tokenize(document["text"]))][:max_tokens]
+tokens = [annotation(t, f"{idx}", display="inline-block") for idx, t in enumerate(tokenizer.tokenize(document["text"]))][
+    :max_tokens
+]
 # st.code(tokens)
 
 annotated_text(*tokens)
