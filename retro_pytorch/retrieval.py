@@ -1,9 +1,13 @@
 import logging
 import os
 import pickle as pkl
+import random
+import time
+import urllib
 from collections import defaultdict
 from math import ceil, sqrt
 from pathlib import Path
+from typing import Optional
 
 import faiss
 import jsonlines
@@ -12,11 +16,12 @@ import torch
 import torch.nn.functional as F
 from codetiming import Timer
 from einops import rearrange
+from omegaconf import DictConfig
 
 from retro_pytorch.utils import memmap
 
 LOG_KNNS_EVERY = 8_000  # under a minute on devfair
-TRAINED_INDEX_SUFFIX = '.trained'
+TRAINED_INDEX_SUFFIX = ".trained"
 CASED = False
 SOS_ID = 101
 EOS_ID = 102
@@ -24,8 +29,8 @@ BERT_MODEL_DIM = 768
 # TODO: this is very unpleasant
 BERT_VOCAB_SIZE = 28996 if CASED else 30522
 
-TMP_PATH = Path('./.tmp')
-EMBEDDING_TMP_SUBFOLDER = 'embeddings'
+TMP_PATH = Path("./.tmp")
+EMBEDDING_TMP_SUBFOLDER = "embeddings"
 
 # helper functions
 
@@ -59,14 +64,27 @@ TOKENIZER = None
 def get_tokenizer():
     global TOKENIZER
     if not exists(TOKENIZER):
-        TOKENIZER = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', f'bert-base-{"" if CASED else "un"}cased')
+        TOKENIZER = torch.hub.load("huggingface/pytorch-transformers", "tokenizer", f'bert-base-{"" if CASED else "un"}cased')
     return TOKENIZER
 
 
-def get_bert():
+def get_bert(
+    name: Optional[str] = None,
+    repo_or_dir: str = "huggingface/pytorch-transformers",
+    source: str = "github",
+    skip_validation: bool = False,
+):
+    if name is None:
+        name = f'bert-base-{"" if CASED else "un"}cased'
     global MODEL
     if not exists(MODEL):
-        MODEL = torch.hub.load('huggingface/pytorch-transformers', 'model', f'bert-base-{"" if CASED else "un"}cased')
+        MODEL = torch.hub.load(
+            repo_or_dir,
+            "model",
+            name,
+            skip_validation=skip_validation,
+            source=source,
+        )
         if torch.cuda.is_available():
             MODEL = MODEL.cuda()
 
@@ -82,7 +100,7 @@ def tokenize(texts, add_special_tokens=True):
 
     tokenizer = get_tokenizer()
 
-    encoding = tokenizer.batch_encode_plus(texts, add_special_tokens=add_special_tokens, padding=True, return_tensors='pt')
+    encoding = tokenizer.batch_encode_plus(texts, add_special_tokens=add_special_tokens, padding=True, return_tensors="pt")
 
     token_ids = encoding.input_ids
     return token_ids
@@ -92,11 +110,11 @@ def tokenize(texts, add_special_tokens=True):
 
 
 def doc_text_to_chunks_and_seq_indices(*, doc_text, chunk_size=64, seq_len=2048, pad_id=0):
-    assert (seq_len % chunk_size) == 0, 'sequence length must be divisible by chunk size'
+    assert (seq_len % chunk_size) == 0, "sequence length must be divisible by chunk size"
 
     # ignore spurious warning - we won't be feeding sequence into model as-is
     ids = tokenize(doc_text)
-    ids = rearrange(ids, '1 ... -> ...')
+    ids = rearrange(ids, "1 ... -> ...")
 
     text_len = ids.shape[-1]
 
@@ -109,13 +127,13 @@ def doc_text_to_chunks_and_seq_indices(*, doc_text, chunk_size=64, seq_len=2048,
 
     ids, last_token = ids[:-1], ids[-1:]
     assert last_token.item() == 0
-    ids = rearrange(ids, '(n c) -> n c', c=chunk_size)
+    ids = rearrange(ids, "(n c) -> n c", c=chunk_size)
 
     # first tokens of chunk [2:] and on will become the last token of chunk [1:]
 
     last_token_per_chunk = ids[1:, 0]
     all_last_tokens = torch.cat((last_token_per_chunk, last_token), dim=0)
-    all_last_tokens = rearrange(all_last_tokens, 'n -> n 1')
+    all_last_tokens = rearrange(all_last_tokens, "n -> n 1")
 
     # append all last tokens to ids for (num_chunks, chunk_size + 1)
 
@@ -138,7 +156,7 @@ def jsonl_folder_iterator(folder, glob):
     for path in paths:
         with jsonlines.open(path) as reader:
             for obj in reader:
-                yield obj['text'], path.name
+                yield obj["text"], path.name
 
 
 # def jsonl_iterator(fname):
@@ -149,7 +167,7 @@ def jsonl_folder_iterator(folder, glob):
 
 def jsonl_folder_to_chunks_(
     folder,
-    glob='**/*.jsonl',
+    glob="**/*.jsonl",
     **kwargs,
 ):
     return _text_to_chunks(text_iterator=jsonl_folder_iterator(folder, glob), **kwargs)
@@ -166,7 +184,7 @@ def text_folder_iterator(folder, glob):
 
 def text_folder_to_chunks_(
     folder,
-    glob='**/*.txt',
+    glob="**/*.txt",
     **text_to_chunks_kwargs,
 ):
     return _text_to_chunks(text_iterator=text_folder_iterator(folder, glob), **text_to_chunks_kwargs)
@@ -195,10 +213,10 @@ def _text_to_chunks(
     # TODO: docs for a given filename are a contiguous list so, with a bit more bookkeeping we could compress this structure
     filenames_to_docs = defaultdict(list)
 
-    with memmap(chunks_memmap_path, shape=chunks_shape, dtype=np.int32, mode='w+') as chunks_memmap, memmap(
-        seqs_memmap_path, shape=seqs_shape, dtype=np.int32, mode='w+'
-    ) as seqs_memmap, memmap(doc_ids_memmap_path, shape=doc_ids_shape, dtype=np.int32, mode='w+') as doc_ids_memmap:
-        logging.info('Processing docs (chunking, etc.)')
+    with memmap(chunks_memmap_path, shape=chunks_shape, dtype=np.int32, mode="w+") as chunks_memmap, memmap(
+        seqs_memmap_path, shape=seqs_shape, dtype=np.int32, mode="w+"
+    ) as seqs_memmap, memmap(doc_ids_memmap_path, shape=doc_ids_shape, dtype=np.int32, mode="w+") as doc_ids_memmap:
+        logging.info("Processing docs (chunking, etc.)")
 
         for text, filename in text_iterator:
             chunks, seq = doc_text_to_chunks_and_seq_indices(doc_text=text, chunk_size=chunk_size, seq_len=seq_len)
@@ -207,11 +225,11 @@ def _text_to_chunks(
             doc_seq_len = seq.shape[0]
 
             if doc_chunk_len > max_chunks - total_chunks:
-                msg = f'Hit max chunks in {filename}; stopping'
+                msg = f"Hit max chunks in {filename}; stopping"
                 logging.error(msg)
                 raise Exception(msg)
             if doc_seq_len > max_seqs - total_seqs:
-                msg = f'Hit max seqs in {filename}; stopping'
+                msg = f"Hit max seqs in {filename}; stopping"
                 logging.error(msg)
                 raise Exception(msg)
 
@@ -226,14 +244,14 @@ def _text_to_chunks(
             total_docs += 1
 
             if total_docs % 1000 == 0:
-                logging.debug(f'Processed {total_docs} docs so far')
+                logging.debug(f"Processed {total_docs} docs so far")
 
-        logging.debug(f'Finished processing docs')
+        logging.debug(f"Finished processing docs")
 
         # shuffle at one of last places before split into train, validation
         np.random.shuffle(seqs_memmap[0:(total_seqs)])
 
-        with open(f'{doc_ids_memmap_path}.map', 'wb') as f:
+        with open(f"{doc_ids_memmap_path}.map", "wb") as f:
             pkl.dump(filenames_to_docs, f)
 
     return dict(chunks=total_chunks, docs=total_docs, seqs=total_seqs)
@@ -243,8 +261,11 @@ def _text_to_chunks(
 
 
 @torch.no_grad()
-def bert_embed(token_ids, return_cls_repr=False, eps=1e-8, pad_id=0.0):
-    model = get_bert()
+def bert_embed(token_ids, return_cls_repr=False, eps=1e-8, pad_id=0.0, model_config: Optional[DictConfig] = None):
+    if model_config is None:
+        model = get_bert()
+    else:
+        model = get_bert(**model_config)
     mask = token_ids != pad_id
 
     if torch.cuda.is_available():
@@ -262,7 +283,7 @@ def bert_embed(token_ids, return_cls_repr=False, eps=1e-8, pad_id=0.0):
         return hidden_state.mean(dim=1)
 
     mask = mask[:, 1:]  # mean all tokens excluding [cls], accounting for length
-    mask = rearrange(mask, 'b n -> b n 1')
+    mask = rearrange(mask, "b n -> b n 1")
 
     numer = (hidden_state[:, 1:] * mask).sum(dim=1)
     denom = mask.sum(dim=1)
@@ -298,12 +319,12 @@ def chunks_to_embeddings_(
     #         raise FileNotFoundError(f"When embedding with worker_ids, the numpy file must already exist to avoid accidental truncation of other worker output. Please create it by running from retro_pytorch.utils import BertEmbeds; BertEmbeds(fname = '{embeddings_memmap_path}', shape={embed_shape}, dtype=np.float32, mode='w+') before running any workers.")
     #     mode = 'r+'
     # else:
-    mode = 'w+'
+    mode = "w+"
 
     with memmap(chunks_memmap_path, shape=chunks_shape, dtype=np.int32) as chunks, memmap(
-        embeddings_memmap_path, shape=embed_shape, dtype=np.float32, mode='w+'
+        embeddings_memmap_path, shape=embed_shape, dtype=np.float32, mode="w+"
     ) as embeddings:
-        logging.info('Embedding chunks')
+        logging.info("Embedding chunks")
 
         for idx, dim_slice in enumerate(range_chunked(num_chunks, batch_size=batch_size)):
             # TODO: see todo above
@@ -325,9 +346,9 @@ def chunks_to_embeddings_(
             batch_embed = bert_embed(batch_chunk, return_cls_repr=use_cls_repr)
 
             embeddings[dim_slice] = batch_embed.detach().cpu().numpy()
-            logging.debug(f'Embedded {dim_slice.stop} / {num_chunks}')
+            logging.debug(f"Embedded {dim_slice.stop} / {num_chunks}")
 
-        logging.debug(f'Finished embedding chunks')
+        logging.debug(f"Finished embedding chunks")
 
 
 def train_faiss_index(embeddings, index_path):
@@ -342,7 +363,7 @@ def train_faiss_index(embeddings, index_path):
         num_clusters = 1048576
     num_train_examples = min(num_clusters * 64, embeddings.shape[0])
     logging.info(
-        f'Training an IVF index with {num_clusters} clusters on {num_train_examples} training examples (out of {embeddings.shape[0]} total vectors).'
+        f"Training an IVF index with {num_clusters} clusters on {num_train_examples} training examples (out of {embeddings.shape[0]} total vectors)."
     )
 
     # This is the closest FAISS equivalent to Google's SCANN
@@ -397,7 +418,7 @@ def index_embeddings(
     index_path,
     faiss_num_threads=None,
 ):
-    with memmap(embeddings_path, shape=embed_shape, dtype=np.float32, mode='r') as embeddings:
+    with memmap(embeddings_path, shape=embed_shape, dtype=np.float32, mode="r") as embeddings:
         pretrained_index_path = str(index_path) + TRAINED_INDEX_SUFFIX
         # we can do this because it's only created when the (long) process is completed
         if Path(pretrained_index_path).exists():
@@ -413,22 +434,22 @@ def index_embeddings(
             faiss.omp_set_num_threads(faiss_num_threads)
 
         num_embeds = embeddings.shape[0]
-        logging.info(f'Adding {num_embeds} embeds to index')
+        logging.info(f"Adding {num_embeds} embeds to index")
         # Do it in chunks so we don't run out of RAM. For 5.8 B embeddings
         # and 4 threads, this took around 2 days.
         last_billion = 0
         for dim_slice in range_chunked(num_embeds, batch_size=128):
             if dim_slice.start % (128 * 1000) == 0:
-                logging.debug(f'{dim_slice.start} / {num_embeds}')
+                logging.debug(f"{dim_slice.start} / {num_embeds}")
                 if dim_slice.start // 1_000_000_000 > last_billion:
                     last_billion += 1
-                    logging.info(f'Writing index to {index_path} ({last_billion} billion)')
+                    logging.info(f"Writing index to {index_path} ({last_billion} billion)")
                     faiss.write_index(index, str(index_path))
             index.add(embeddings[dim_slice])
 
-        logging.info(f'Writing index to {index_path}')
+        logging.info(f"Writing index to {index_path}")
         faiss.write_index(index, str(index_path))
-        logging.info(f'Index written')
+        logging.info(f"Index written")
 
         return index
 
@@ -448,7 +469,7 @@ def chunks_to_index_and_embed(
     embed_shape = (num_chunks, embed_dim)
 
     # TODO: this isn't ideal but creating embeddings takes so long it could be risky to assume presence of the file means all is well
-    if os.environ.get('SKIP_EMBEDS') != '1':
+    if os.environ.get("SKIP_EMBEDS") != "1":
         chunks_to_embeddings_(
             num_chunks=num_chunks,
             chunk_size=chunk_size,
@@ -465,7 +486,7 @@ def chunks_to_index_and_embed(
         index_path=index_path,
     )
 
-    embeddings = np.memmap(embedding_path, shape=embed_shape, dtype=np.float32, mode='r')
+    embeddings = np.memmap(embedding_path, shape=embed_shape, dtype=np.float32, mode="r")
     return index, embeddings
 
 
@@ -489,26 +510,26 @@ def chunks_to_precalculated_knn_(
     index_path = Path(index_path)
 
     chunk_path = Path(chunk_memmap_path)
-    knn_path = chunk_path.parents[0] / f'{chunk_path.stem}.knn{chunk_path.suffix}'
+    knn_path = chunk_path.parents[0] / f"{chunk_path.stem}.knn{chunk_path.suffix}"
 
     # early return knn path and faiss index
     # unless if force_reprocess is True
 
     if index_path.exists() and knn_path.exists() and not force_reprocess:
-        logging.info(f'Preprocessed knns found at {str(knn_path)}, Faiss index reconstituted from {str(index_path)}')
+        logging.info(f"Preprocessed knns found at {str(knn_path)}, Faiss index reconstituted from {str(index_path)}")
         index = faiss_read_index(index_path)
         return knn_path, index
 
     # fetch the faiss index and calculated embeddings for the chunks
 
     embed_shape = (num_chunks, embed_dim)
-    embedding_path = f'{chunk_memmap_path}.embedded'
+    embedding_path = f"{chunk_memmap_path}.embedded"
     if index_path.exists() and Path(embedding_path).exists() and not force_reprocess:
         logging.info(
-            f'Using precomputed Faiss index reconstituted from {str(index_path)}, embeddings found at {str(embedding_path)}'
+            f"Using precomputed Faiss index reconstituted from {str(index_path)}, embeddings found at {str(embedding_path)}"
         )
         index = faiss_read_index(index_path)
-        embeddings = np.memmap(embedding_path, shape=embed_shape, dtype=np.float32, mode='r')
+        embeddings = np.memmap(embedding_path, shape=embed_shape, dtype=np.float32, mode="r")
     else:
         index, embeddings = chunks_to_index_and_embed(
             num_chunks=num_chunks,
@@ -522,14 +543,16 @@ def chunks_to_precalculated_knn_(
 
     total_neighbors_to_fetch = num_extra_neighbors + num_nearest_neighbors + 1
 
-    with memmap(knn_path, shape=(num_chunks, num_nearest_neighbors), dtype=np.int32, mode='w+') as knns, memmap(
-        doc_ids_memmap_path, shape=(num_chunks,), dtype=np.int32, mode='r'
+    with memmap(knn_path, shape=(num_chunks, num_nearest_neighbors), dtype=np.int32, mode="w+") as knns, memmap(
+        doc_ids_memmap_path, shape=(num_chunks,), dtype=np.int32, mode="r"
     ) as doc_ids:
-        logging.info('Calculating knns')
+        logging.info("Calculating knns")
 
         for dim_slice in range_chunked(num_chunks, batch_size=max_rows_per_file):
             if ((dim_slice.start + max_rows_per_file) % LOG_KNNS_EVERY) == 0:
-                logging.debug(f'Calculating knns {dim_slice.start} / {num_chunks}')  # TODO: THIS SHOULD BE A FUNCTION OF BATCH SIZE. 4k is 30 mins vs. 1 min 1k
+                logging.debug(
+                    f"Calculating knns {dim_slice.start} / {num_chunks}"
+                )  # TODO: THIS SHOULD BE A FUNCTION OF BATCH SIZE. 4k is 30 mins vs. 1 min 1k
 
             query_vector = embeddings[dim_slice]
 
@@ -553,6 +576,6 @@ def chunks_to_precalculated_knn_(
             # store nearest neighbors to knn memmap
             knns[dim_slice] = indices[:, :num_nearest_neighbors]
 
-    logging.info(f'Knns saved to {knn_path}')
+    logging.info(f"Knns saved to {knn_path}")
 
     return knn_path, index
