@@ -1,11 +1,8 @@
 import logging
 import os
 import pickle as pkl
-import random
-import time
-import urllib
 from collections import defaultdict
-from math import ceil, sqrt
+from math import sqrt
 from pathlib import Path
 from typing import Optional
 
@@ -14,7 +11,6 @@ import jsonlines
 import numpy as np
 import torch
 import torch.nn.functional as F
-from codetiming import Timer
 from einops import rearrange
 from omegaconf import DictConfig
 
@@ -61,10 +57,25 @@ MODEL = None
 TOKENIZER = None
 
 
-def get_tokenizer():
+def get_tokenizer(
+    name: Optional[str] = None,
+    repo_or_dir: str = "huggingface/pytorch-transformers",
+    source: str = "github",
+    skip_validation: bool = False,
+):
     global TOKENIZER
+    if name is None:
+        name = f'bert-base-{"" if CASED else "un"}cased'
+    if source == 'local':
+        repo_or_dir = str(Path(repo_or_dir).expanduser())
     if not exists(TOKENIZER):
-        TOKENIZER = torch.hub.load("huggingface/pytorch-transformers", "tokenizer", f'bert-base-{"" if CASED else "un"}cased')
+        TOKENIZER = torch.hub.load(
+            repo_or_dir,
+            "tokenizer",
+            name,
+            skip_validation=skip_validation,
+            source=source
+        )
     return TOKENIZER
 
 
@@ -76,6 +87,8 @@ def get_bert(
 ):
     if name is None:
         name = f'bert-base-{"" if CASED else "un"}cased'
+    if source == 'local':
+        repo_or_dir = str(Path(repo_or_dir).expanduser())
     global MODEL
     if not exists(MODEL):
         MODEL = torch.hub.load(
@@ -94,11 +107,23 @@ def get_bert(
 # tokenize
 
 
-def tokenize(texts, add_special_tokens=True):
+def tokenize(
+    texts,
+    add_special_tokens=True,
+    name: Optional[str] = None,
+    repo_or_dir: str = "huggingface/pytorch-transformers",
+    source: str = "github",
+    skip_validation: bool = False,
+):
     if not isinstance(texts, (list, tuple)):
         texts = [texts]
 
-    tokenizer = get_tokenizer()
+    tokenizer = get_tokenizer(
+        name=name,
+        repo_or_dir=repo_or_dir,
+        source=source,
+        skip_validation=skip_validation
+    )
 
     encoding = tokenizer.batch_encode_plus(texts, add_special_tokens=add_special_tokens, padding=True, return_tensors="pt")
 
