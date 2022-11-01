@@ -69,13 +69,7 @@ def get_tokenizer(
     if source == 'local':
         repo_or_dir = str(Path(repo_or_dir).expanduser())
     if not exists(TOKENIZER):
-        TOKENIZER = torch.hub.load(
-            repo_or_dir,
-            "tokenizer",
-            name,
-            skip_validation=skip_validation,
-            source=source
-        )
+        TOKENIZER = torch.hub.load(repo_or_dir, "tokenizer", name, skip_validation=skip_validation, source=source)
     return TOKENIZER
 
 
@@ -118,12 +112,7 @@ def tokenize(
     if not isinstance(texts, (list, tuple)):
         texts = [texts]
 
-    tokenizer = get_tokenizer(
-        name=name,
-        repo_or_dir=repo_or_dir,
-        source=source,
-        skip_validation=skip_validation
-    )
+    tokenizer = get_tokenizer(name=name, repo_or_dir=repo_or_dir, source=source, skip_validation=skip_validation)
 
     encoding = tokenizer.batch_encode_plus(texts, add_special_tokens=add_special_tokens, padding=True, return_tensors="pt")
 
