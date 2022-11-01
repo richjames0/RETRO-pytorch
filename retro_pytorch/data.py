@@ -10,6 +10,17 @@ from retro_pytorch.utils import memmap
 # knn to retrieved chunks
 
 
+def mask_after_eos(seq_tokens, eos_id):
+    # mask out (with padding tokens) any token following an <eos> | disallow having more than 1 document in a sequence, as it would break RETRO's CCA
+    seq_mask = np.cumsum(seq_tokens == eos_id, axis=-1)
+
+    # shift seq_mask to right to include eos_id token.
+    seq_mask = np.concatenate((np.zeros(seq_mask.shape[:-1] + (1,)), seq_mask), axis=-1)[..., :-1] == 0.0
+
+    seq_tokens = np.where(seq_mask, seq_tokens, 0.0)
+    return seq_tokens
+
+
 def knn_to_retrieved_chunks(
     knns,
     chunks_memmap,
@@ -28,7 +39,6 @@ def knn_to_retrieved_chunks(
     # get neighbor and continuation chunks
 
     knn_chunks = chunks_memmap[knns]
-    is_last_document_chunk = np.any(knn_chunks == eos_id, axis=-1, keepdims=True)
 
     # use presence of [EOS] in chunk as way to detect document boundaries
     # [EOS] in BERT tokenizer is 102
@@ -38,11 +48,10 @@ def knn_to_retrieved_chunks(
     if add_continuations:
         continuation_indices = np.clip(knns + 1, 0, num_chunks - 1)  # chunks are stored contiguously
         continuation_chunks = chunks_memmap[continuation_indices][..., :-1]
-        continuation_chunks *= ~is_last_document_chunk
-
-        # combine neighbors with continuations
-
         retrieved = np.concatenate((retrieved, continuation_chunks), axis=-1)
+
+    # mask documents after [EOS]
+    retrieved = mask_after_eos(retrieved, eos_id)
 
     # mask out any nearest neighbor chunks that was -1 (not found at index time) to padding id
 
@@ -109,11 +118,7 @@ class RETRODataset(Dataset):
 
             seq_tokens = np.concatenate((chunks[:, :-1].flatten(), chunks[-1, -1:]))
 
-            # mask out (with padding tokens) any token following an <eos> | disallow having more than 1 document in a sequence, as it would break RETRO's CCA
-
-            seq_mask = np.cumsum(seq_tokens == self.eos_id, axis=0)
-            seq_mask = np.pad(seq_mask, (1, 0))[:-1] == 0.0
-            seq_tokens = np.where(seq_mask, seq_tokens, 0.0)
+            seq_tokens = mask_after_eos(seq_tokens, self.eos_id)
 
             retrieved = np.empty(0)
             if self.retrieve:
