@@ -12,12 +12,13 @@ from retro_pytorch.utils import memmap
 
 def mask_after_eos(seq_tokens, eos_id):
     # mask out (with padding tokens) any token following an <eos> | disallow having more than 1 document in a sequence, as it would break RETRO's CCA
-    seq_mask = np.cumsum(seq_tokens == eos_id, axis=-1)
+    seq_mask = np.cumsum(seq_tokens == eos_id, axis=-1, dtype=np.int32)
 
     # shift seq_mask to right to include eos_id token.
-    seq_mask = np.concatenate((np.zeros(seq_mask.shape[:-1] + (1,)), seq_mask), axis=-1)[..., :-1] == 0.0
+    pad_zero = np.zeros(seq_mask.shape[:-1] + (1,), dtype=np.int32)
+    seq_mask = np.concatenate((pad_zero, seq_mask), axis=-1)[..., :-1] == 0
 
-    seq_tokens = np.where(seq_mask, seq_tokens, 0.0)
+    seq_tokens = np.where(seq_mask, seq_tokens, 0)
     return seq_tokens
 
 

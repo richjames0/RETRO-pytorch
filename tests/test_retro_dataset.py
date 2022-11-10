@@ -1,17 +1,18 @@
 from unittest.mock import patch
 
 import numpy as np
+import torch
 
 from retro_pytorch.data import RETRODataset
 
 
 def test_dropping_end_token_in_chunks():
     EOS_ID = 10
-    chunks = np.asarray([[1, 2, 3], [3, EOS_ID, 5], [5, 6, EOS_ID], [EOS_ID, 0, 0]])
+    chunks = np.asarray([[1, 2, 3], [3, EOS_ID, 5], [5, 6, EOS_ID], [EOS_ID, 0, 0]], dtype=np.int32)
 
-    knn = np.asarray([[1, 2], [2, -1], [-1, -1], [-1, -1]])
+    knn = np.asarray([[1, 2], [2, -1], [-1, -1], [-1, -1]], dtype=np.int32)
 
-    seqs = np.asarray([0, 2])
+    seqs = np.asarray([0, 2], dtype=np.int32)
 
     chunk_size = chunks.shape[-1] - 1
     num_chunk_per_seq = 2
@@ -48,6 +49,10 @@ def test_dropping_end_token_in_chunks():
         assert len(dataset) == num_seqs
 
         actual_seq_tokens, actual_retrieved_tokens = dataset[0]
+
+        assert actual_retrieved_tokens.dtype == torch.int32
+        assert actual_seq_tokens.dtype == torch.int32
+
         expected_seq_tokens = [1, 2, 3, EOS_ID, 0]  # padding tokens after EOS token
         expected_retrieved_tokens = [
             [
