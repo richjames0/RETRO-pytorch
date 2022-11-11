@@ -50,8 +50,8 @@ def test_dropping_end_token_in_chunks():
 
         actual_seq_tokens, actual_retrieved_tokens = dataset[0]
 
-        assert actual_retrieved_tokens.dtype == torch.int32
-        assert actual_seq_tokens.dtype == torch.int32
+        assert actual_retrieved_tokens.dtype == torch.int64
+        assert actual_seq_tokens.dtype == torch.int64
 
         expected_seq_tokens = [1, 2, 3, EOS_ID, 0]  # padding tokens after EOS token
         expected_retrieved_tokens = [
