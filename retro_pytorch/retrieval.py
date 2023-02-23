@@ -101,21 +101,11 @@ def get_bert(
 # tokenize
 
 
-def tokenize(
-    texts,
-    add_special_tokens=True,
-    name: Optional[str] = None,
-    repo_or_dir: str = "huggingface/pytorch-transformers",
-    source: str = "github",
-    skip_validation: bool = False,
-):
+def tokenize(texts, name: Optional[str] = None, repo_or_dir: str = "huggingface/pytorch-transformers", source: str = "github", skip_validation: bool = False, add_special_tokens=True):
     if not isinstance(texts, (list, tuple)):
         texts = [texts]
-
     tokenizer = get_tokenizer(name=name, repo_or_dir=repo_or_dir, source=source, skip_validation=skip_validation)
-
     encoding = tokenizer.batch_encode_plus(texts, add_special_tokens=add_special_tokens, padding=True, return_tensors="pt")
-
     token_ids = encoding.input_ids
     return token_ids
 
@@ -340,7 +330,7 @@ def chunks_to_embeddings_(
     ) as embeddings:
         logging.info("Embedding chunks")
 
-        for idx, dim_slice in enumerate(range_chunked(num_chunks, batch_size=batch_size)):
+        for batch_index, dim_slice in enumerate(range_chunked(num_chunks, batch_size=batch_size)):
             # TODO: see todo above
             # If num_workers is 10, each worker does every 10'th batch (offset by worker_id)
             # if idx % num_workers != worker_id:
@@ -360,6 +350,10 @@ def chunks_to_embeddings_(
             batch_embed = bert_embed(batch_chunk, return_cls_repr=use_cls_repr)
 
             embeddings[dim_slice] = batch_embed.detach().cpu().numpy()
+            for embed_of_batch_index, embedding in enumerate(embeddings[dim_slice]):
+                if not embedding.any():
+                    logging.error(f'Issue embedding ({batch_index},{embed_of_batch_index}): {chunks[batch_index * batch_size + embed_of_batch_index]} mapped to all zeros')
+                    import pdb; pdb.set_trace()
             logging.debug(f"Embedded {dim_slice.stop} / {num_chunks}")
 
         logging.debug(f"Finished embedding chunks")
